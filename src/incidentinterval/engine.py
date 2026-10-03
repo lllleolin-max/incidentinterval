@@ -47,6 +47,36 @@ def descendants(seeds, outgoing):
     return reached
 
 
+def causal_cycle(outgoing):
+    """Return ordered link IDs from one actual directed cycle in a bounded graph."""
+    color, path, nodes = {}, [], []
+
+    def visit(node):
+        color[node] = 1
+        nodes.append(node)
+        for link in outgoing[node]:
+            child = link["to"]
+            if color.get(child) == 1:
+                index = nodes.index(child)
+                return path[index:] + [link["id"]]
+            if not color.get(child):
+                path.append(link["id"])
+                found = visit(child)
+                if found:
+                    return found
+                path.pop()
+        nodes.pop()
+        color[node] = 2
+        return None
+
+    for node in sorted(outgoing):
+        if not color.get(node):
+            found = visit(node)
+            if found:
+                return found
+    return []
+
+
 def observed_edges(events, observations, impact):
     edges = []
     for n, event in events.items():
@@ -91,7 +121,7 @@ def max_model(events, observations, impact, hyp, limits):
     order, incoming, outgoing = graph(events, links)
     if order is None:
         return {"status": "INVALID_MODEL", "reason": "causal cycle is outside the declared DAG subset",
-                "blocked_events": sorted(n for n in events if incoming[n])}
+                "causal_cycle": causal_cycle(outgoing)}
     roots = {n for n in events if not incoming[n]}
     if roots != set(hyp["roots"]):
         return {"status": "INVALID_MODEL", "reason": "activation windows must exactly match graph roots",

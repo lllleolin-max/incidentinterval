@@ -30,7 +30,9 @@ def delta(a, b, window, reason, evidence=()):
 
 def check_assignment(edges, assignment):
     """Independent O(E) certificate checker, requiring origin to be zero."""
-    if assignment.get(ANCHOR) != 0:
+    if not isinstance(assignment, dict) or assignment.get(ANCHOR) != 0:
+        return False
+    if any(type(value) is not int for value in assignment.values()):
         return False
     return all(e.source in assignment and e.target in assignment
                and assignment[e.target] - assignment[e.source] <= e.bound for e in edges)
@@ -38,7 +40,9 @@ def check_assignment(edges, assignment):
 
 def check_negative_cycle(edges, witness):
     """Check membership, a closed connected walk and strictly negative sum."""
-    if not witness:
+    if not isinstance(witness, list) or not witness:
+        return False
+    if any(not isinstance(e, Edge) or type(e.bound) is not int for e in witness):
         return False
     known = set(edges)
     return (all(e in known for e in witness)
