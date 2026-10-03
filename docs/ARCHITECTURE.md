@@ -1,0 +1,36 @@
+# Algorithm and trust boundary
+
+`domain.py` checks the strict integer contract and resource cardinality. `temporal.py` implements a simple temporal network (STN). `engine.py` intersects observations with explicitly supplied max-plus structural hypotheses and their bounded interventions. `checker.py` independently checks equations against certificate times/delays without calling the solver. `cli.py` handles strict local JSON, duplicate keys, file byte limits and stable exit statuses. Core SDK functions do not write files, execute commands, access the network or change the incident input.
+
+## Temporal network
+
+Every event interval L ≤ t ≤ U is two inequalities relative to `@origin`; every measured difference L ≤ t[v]-t[u] ≤ U is two directed weighted edges. Bellman-Ford with all-zero initial potentials detects any negative cycle, including disconnected components. Following predecessor edges V times enters a cycle; its ordered edges are returned and checked. Otherwise normalized potentials give an integer feasible assignment with origin zero. Floyd-Warshall provides tight bounds on every pair: `[-d[v][u], d[u][v]]`. All arithmetic on reachable paths uses Python integers; no floating-point epsilon decides equality or infeasibility.
+
+Bellman-Ford costs O(VE); closure costs O(V^3), memory O(V²+E). Canonical node and edge order makes equivalent input permutations stable. The certificate checker costs O(E). Source IDs are carried by each corresponding interval/difference inequality. The solver proves consistency of declared data, not source accuracy.
+
+## Max-plus structural equations
+
+A DAG root has a declared interval. Every nonroot satisfies
+
+```text
+t[v] = max(t[u] + delay[u,v] for all incoming links)
+delay[u,v] ∈ [L[u,v], U[u,v]] independently
+```
+
+For fixed times, this is equivalent to (1) `t[v] >= t[u] + L` for every incoming edge, and (2) `t[v] <= t[u] + U` for at least one incoming edge. Choose that edge's delay `t[v]-t[u]`; choose minimum delays on every other edge. The lower inequalities ensure no other arrival exceeds `t[v]`. This constructive equivalence makes the max equation a finite union of STNs, one branch per critical-parent choice. We enumerate all choices within a cap; we never declare a model feasible merely because interval envelopes overlap. Envelopes derived recursively from roots/lag bounds provide sound finite support and cheap necessary constraints.
+
+For indegrees d[v], B=∏d[v] branches, worst-case per model O(B(V³+VE)) time and O(BV²) retained feasible closure memory. An incident evaluates H models and up to 2HI historical/scenario solves; this multiplies the cost. Raising per-solve limits can be expensive. Root mismatch/cycles are invalid structural models; excessive branch count returns UNKNOWN. Necessary temporal contradiction can refute a model even when B exceeds the cap. A contradiction of the exact max model with feasible necessary constraints includes a separate negative-cycle witness for **every** branch, not one failing branch presented as exhaustive proof.
+
+Impact duration min/max is optimized separately in every feasible STN, then across the union. Each extremum is attained by adding a difference equality and solving again; the direct equation checker can verify the resulting witness. We report the min/max envelope and do not assert every interior value is feasible. Critical-parent alternatives come from all feasible branch selectors; a selected parent's zero/tied delay still permits a causal DAG but does not force strict chronological order.
+
+## Interventions
+
+Root windows or link delays can change; node removal cascades along necessary-prerequisite edges. Historical compatibility uses all observations and the changed model, reporting why it conflicts. Counterfactuals relax event bounds and time differences touching affected descendants; unaffected constraints remain. Source observations are not modified. Root activation/lag windows continue as model assumptions. All changes and conditions are reported.
+
+The model assumes independent delay intervals and no omitted causal mechanisms. An exact range under these assumptions is not an identified real-world effect. Comparing baseline/scenario min/max yields a conservative unpaired improvement envelope; it can leave an action unidentified when a more detailed coupled model would resolve it. Alternative hypotheses are separate structural explanations, not weighted probabilities. Evidence presence allows a conditional recommendation but does not validate causality. An unknown hypothesis blocks a recommendation robust across the supplied set.
+
+## Supported subset / failure boundaries
+
+Useful scope: tens of significant incident events, finite integer clock intervals, difference observations, DAG AND-gated prerequisites, independent bounded link delays, uncertain root times, complete enumeration within limits, and explicit counterfactual modifications. Unsupported: OR triggers inside one graph, feedback/cyclic dynamics, stochastic/continuous probability models, partial correlations of delays, unobserved event discovery, natural-language extraction, clock offset estimation and authenticated source retrieval. Encode OR causes as separate hypotheses only when that is an honest model; changing the graph to avoid a contradiction does not count as causal proof.
+
+Input cardinality/byte bounds and branch limits constrain work, but this library is not a sandbox or a service isolation layer. Reports can include incident labels, source references and constraints; sanitize data before persistence. Users control how outward-quantized integer windows approximate clock error. An interval crossing an endpoint is inclusive by design, with equal-time relations explicitly retained.

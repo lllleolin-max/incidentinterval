@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "time_unit": "s",
+  "sources": [
+    {"id": "deploy_log", "reference": "synthetic://deployment-clock-offset-review", "description": "Synthetic deploy clock uncertainty: true time 0..40, logged point 20"},
+    {"id": "traffic_log", "reference": "synthetic://traffic-replay", "description": "Synthetic load activation at 1"},
+    {"id": "monitor", "reference": "synthetic://customer-impact-monitor", "description": "Synthetic impact and recovery measurements"},
+    {"id": "lab_mechanism", "reference": "synthetic://controlled-staging-test", "description": "Hypothetical supporting mechanism evidence, not real production data"}
+  ],
+  "events": [
+    {"id": "deploy", "interval": [0, 40], "timestamp": 20, "evidence": ["deploy_log"]},
+    {"id": "load", "interval": [1, 1], "timestamp": 1, "evidence": ["traffic_log"]},
+    {"id": "impact", "interval": [5, 15], "timestamp": 10, "evidence": ["monitor"]},
+    {"id": "recovery", "interval": [25, 35], "timestamp": 30, "evidence": ["monitor"]}
+  ],
+  "observations": [{"id": "measured_duration", "from": "impact", "to": "recovery", "delta": [20, 20], "evidence": ["monitor"]}],
+  "impact": {"start": "impact", "end": "recovery"},
+  "hypotheses": [
+    {"id": "deploy_fault", "assumptions": ["Deploy fault alone triggers impact after five seconds; no load effect."],
+      "roots": {"deploy": [0, 40], "load": [1, 1]},
+      "links": [
+        {"id": "deploy_to_impact", "from": "deploy", "to": "impact", "delay": [5, 5], "evidence": ["lab_mechanism"]},
+        {"id": "repair", "from": "impact", "to": "recovery", "delay": [20, 20], "evidence": ["lab_mechanism"]}
+      ]},
+    {"id": "load_fault", "assumptions": ["Load alone triggers impact after nine seconds; deploy is unrelated."],
+      "roots": {"deploy": [0, 40], "load": [1, 1]},
+      "links": [
+        {"id": "load_to_impact", "from": "load", "to": "impact", "delay": [9, 9], "evidence": ["lab_mechanism"]},
+        {"id": "repair", "from": "impact", "to": "recovery", "delay": [20, 20], "evidence": ["lab_mechanism"]}
+      ]}
+  ],
+  "interventions": [
+    {"id": "rollback", "remove": ["deploy"], "assumptions": ["Rollback completely prevents the faulty deploy activation."]},
+    {"id": "rate_limit", "remove": ["load"], "assumptions": ["Rate limiting completely prevents the modeled load activation."]},
+    {"id": "faster_recovery", "delays": {"repair": [5, 5]}, "assumptions": ["Repair finishes in five seconds without changing failure causes."]},
+    {"id": "slower_recovery", "delays": {"repair": [30, 30]}, "assumptions": ["A manual approval increases repair delay to thirty seconds."]},
+    {"id": "impossible_keep_history", "delays": {"repair": [5, 5]}, "preserve_observations": true, "assumptions": ["Require the same measured duration while claiming a five-second repair."]},
+    {"id": "remove_recovery", "remove": ["recovery"], "assumptions": ["Disable recovery; this does not prevent the impact activation."]}
+  ]
+}
