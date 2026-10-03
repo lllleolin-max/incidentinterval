@@ -97,6 +97,8 @@ def parse(data, limits):
 
     def evidence(item, path):
         refs = sequence(item.get("evidence", []), limits.constraints, path + ".evidence")
+        for ref in refs:
+            identifier(ref, path + ".evidence[]")
         if len(set(refs)) != len(refs) or any(ref not in sources for ref in refs):
             raise InputError(f"{path}.evidence: unique known source IDs required")
 
@@ -115,6 +117,8 @@ def parse(data, limits):
                 raise InputError("event.timestamp: must lie in declared clock interval")
 
     def endpoints(item, path):
+        identifier(item.get("from"), path + ".from")
+        identifier(item.get("to"), path + ".to")
         if item.get("from") not in events or item.get("to") not in events:
             raise InputError(f"{path}: known from/to event IDs required")
 
@@ -127,6 +131,8 @@ def parse(data, limits):
         interval(obs["delta"], "observation.delta")
         evidence(obs, "observation")
     obj(data["impact"], ("start", "end"), "impact", ("start", "end"))
+    for key in ("start", "end"):
+        identifier(data["impact"][key], "impact." + key)
     if any(data["impact"][key] not in events for key in ("start", "end")):
         raise InputError("impact: known start/end event IDs required")
     if data["impact"]["start"] == data["impact"]["end"]:
@@ -157,9 +163,14 @@ def parse(data, limits):
     for action in interventions.values():
         obj(action, ("id", "remove", "delays", "roots", "preserve_observations", "assumptions"),
             "intervention", ("id", "assumptions"))
-        for assumption in sequence(action["assumptions"], 64, "intervention.assumptions"):
+        assumptions = sequence(action["assumptions"], 64, "intervention.assumptions")
+        if not assumptions:
+            raise InputError("intervention.assumptions: explicitly state the intervention conditions")
+        for assumption in assumptions:
             text(assumption, "intervention.assumption")
         removed = sequence(action.get("remove", []), limits.events, "intervention.remove")
+        for event_id in removed:
+            identifier(event_id, "intervention.remove[]")
         if len(set(removed)) != len(removed) or any(x not in events for x in removed):
             raise InputError("intervention.remove: unique known event IDs required")
         obj(action.get("delays", {}), {x["id"] for h in hypotheses.values() for x in h["links"]},

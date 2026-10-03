@@ -38,3 +38,11 @@ class CliTests(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertEqual(json.loads(out.stdout)["selected_intervention"], "rate_limit")
         self.assertEqual(self.run_text("{}", "--max-branches", "0").returncode, 2)
+
+    def test_nested_invalid_id_is_structured_error(self):
+        data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        data["events"][0]["evidence"] = [["deploy_log"]]
+        result = self.run_text(json.dumps(data))
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(json.loads(result.stderr)["status"], "INVALID_INPUT")
+        self.assertNotIn("Traceback", result.stderr)
