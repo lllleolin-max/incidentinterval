@@ -46,3 +46,9 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(json.loads(result.stderr)["status"], "INVALID_INPUT")
         self.assertNotIn("Traceback", result.stderr)
+
+    def test_aggregate_limit_exit_code(self):
+        result = self.run_text(FIXTURE.read_text(encoding="utf-8"), "--max-work", "1")
+        self.assertEqual(result.returncode, 4)
+        self.assertEqual(json.loads(result.stdout)["status"], "UNKNOWN")
+        self.assertEqual(self.run_text("{}", "--max-work", "0").returncode, 2)

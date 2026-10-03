@@ -2,7 +2,7 @@
 from copy import deepcopy
 from itertools import product
 from math import prod
-from .domain import parse, Limits
+from .domain import parse, Limits, InputError
 from .temporal import ANCHOR, Edge, bounds, delta, solve, public, window
 
 
@@ -13,6 +13,34 @@ MODEL_ASSUMPTIONS = [
     "Removal disables every downstream event under AND gating; prevention concerns impact start, not recovery.",
     "Model consistency and source references are not causal proof; simulated results are not observations.",
 ]
+
+
+class WorkLimit(Exception):
+    pass
+
+
+class WorkBudget:
+    """Conservative algorithmic work units shared by an entire analyze call."""
+    def __init__(self, limit):
+        self.limit, self.used, self.calls, self.exhausted = limit, 0, 0, False
+
+    def reserve(self, nodes, edges, closure):
+        v = len(set(nodes) | {ANCHOR})
+        cost = v * len(set(edges)) + (v**3 if closure else 0)
+        if self.used + cost > self.limit:
+            self.exhausted = True
+            raise WorkLimit(f"aggregate work budget {self.limit}: used {self.used}, next solve needs {cost}")
+        self.used += cost
+        self.calls += 1
+
+    def json(self):
+        return {"limit": self.limit, "charged": self.used, "solver_calls": self.calls,
+                "exhausted": self.exhausted, "unit": "V*E + V^3 for closure; V*E otherwise"}
+
+
+def checked_solve(nodes, edges, closure, budget):
+    budget.reserve(nodes, edges, closure)
+    return solve(nodes, edges, closure)
 
 
 def graph(events, links):
@@ -100,10 +128,10 @@ def envelope(order, incoming, roots):
     return result
 
 
-def make_witness(result, chosen, links, impact, equality=None):
+def make_witness(result, chosen, links, impact, budget, equality=None):
     if equality is not None:
-        result = solve(result["assignment"], result["edges"] + delta(impact["start"], impact["end"],
-                                                                    [equality, equality], "extremum"), False)
+        result = checked_solve(result["assignment"], result["edges"] + delta(impact["start"], impact["end"],
+                                                                            [equality, equality], "extremum"), False, budget)
         assert result["status"] == "FEASIBLE"
     assignment = result["assignment"]
     delays = {link["id"]: (assignment[link["to"]] - assignment[link["from"]]
@@ -116,7 +144,15 @@ def make_witness(result, chosen, links, impact, equality=None):
     return witness
 
 
-def max_model(events, observations, impact, hyp, limits):
+def max_model(events, observations, impact, hyp, limits, *, budget=None):
+    budget = budget or WorkBudget(limits.work)
+    try:
+        return _max_model(events, observations, impact, hyp, limits, budget)
+    except WorkLimit as exc:
+        return {"status": "UNKNOWN_LIMIT", "reason": str(exc), "work": budget.json()}
+
+
+def _max_model(events, observations, impact, hyp, limits, budget):
     links = sorted(hyp["links"], key=lambda x: x["id"])
     order, incoming, outgoing = graph(events, links)
     if order is None:
@@ -137,7 +173,7 @@ def max_model(events, observations, impact, hyp, limits):
                          tuple(link.get("evidence", []))))
     nonroots = sorted(n for n in events if incoming[n])
     branch_count = prod(len(incoming[n]) for n in nonroots)
-    temporal = solve(events, base)
+    temporal = checked_solve(events, base, True, budget)
     out = {"temporal": public(temporal, True), "branches_total": branch_count,
            "base_constraints": [e.json() for e in sorted(set(base))],
            "structural_envelopes": support}
@@ -153,7 +189,7 @@ def max_model(events, observations, impact, hyp, limits):
         branch_edges = base + [Edge(link["from"], link["to"], link["delay"][1],
                                    "link:" + link["id"] + ":critical-upper",
                                    tuple(link.get("evidence", []))) for link in selection]
-        result = solve(events, branch_edges)
+        result = checked_solve(events, branch_edges, True, budget)
         if result["status"] == "INFEASIBLE":
             failures.append({"critical_parents": chosen, "contradiction": public(result)["contradiction"]})
         else:
@@ -164,7 +200,7 @@ def max_model(events, observations, impact, hyp, limits):
         return {**out, "status": "INFEASIBLE", "branch_failures": failures,
                 "reason": "every possible max-equation critical-parent assignment is contradicted"}
     chosen, result = feasible[0]
-    out.update(status="FEASIBLE", witness=make_witness(result, chosen, links, impact))
+    out.update(status="FEASIBLE", witness=make_witness(result, chosen, links, impact, budget))
     # This path describes one feasible explanation, not an identified historical critical path.
     by_id = {x["id"]: x for x in links}
     cursor = impact["end"]
@@ -179,8 +215,8 @@ def max_model(events, observations, impact, hyp, limits):
         low = min(ranged, key=lambda x: (x[0][0], sorted(x[1].items())))
         high = max(ranged, key=lambda x: (x[0][1], sorted(x[1].items())))
         out["impact_duration"] = [low[0][0], high[0][1]]
-        out["duration_extrema"] = [make_witness(low[2], low[1], links, impact, low[0][0]),
-                                   make_witness(high[2], high[1], links, impact, high[0][1])]
+        out["duration_extrema"] = [make_witness(low[2], low[1], links, impact, budget, low[0][0]),
+                                   make_witness(high[2], high[1], links, impact, budget, high[0][1])]
         out["duration_kind"] = "exact integer min/max envelope; interior values may have gaps"
     return out
 
@@ -208,7 +244,7 @@ def changed_model(events, hyp, action):
     return (active, altered, affected, removed), None
 
 
-def scenario(events, observations, impact, hyp, baseline, action, limits):
+def scenario(events, observations, impact, hyp, baseline, action, limits, budget):
     transformed, error = changed_model(events, hyp, action)
     if error:
         return error
@@ -217,7 +253,7 @@ def scenario(events, observations, impact, hyp, baseline, action, limits):
         historical = {"status": "INFEASIBLE", "contradiction": {"kind": "removed_observed_events",
                        "events": [{"id": n, "evidence": events[n].get("evidence", [])} for n in sorted(removed)]}}
     else:
-        historical = max_model(events, observations, impact, altered, limits)
+        historical = max_model(events, observations, impact, altered, limits, budget=budget)
     preserve = action.get("preserve_observations", False)
     if preserve and removed:
         return {"status": "INFEASIBLE", "historical_compatibility": historical,
@@ -230,7 +266,7 @@ def scenario(events, observations, impact, hyp, baseline, action, limits):
     support = envelope(order, incoming, altered["roots"])
     scenario_events = {n: event if n in retained else {"id": n, "interval": support[n], "evidence": []}
                        for n, event in active.items()}
-    model = max_model(scenario_events, retained_obs, impact, altered, limits)
+    model = max_model(scenario_events, retained_obs, impact, altered, limits, budget=budget)
     out = {"status": model["status"], "historical_compatibility": historical,
            "counterfactual": model, "affected_events": sorted(affected), "removed_events": sorted(removed),
            "relaxed_event_observations": sorted(set(events) - set(retained)),
@@ -261,26 +297,39 @@ def analyze(data, *, limits=None):
     Raises InputError for malformed/unsupported JSON. UNKNOWN_LIMIT is a valid
     result: resource limits never certify infeasibility or safety.
     """
-    limits = limits or Limits()
+    if limits is None:
+        limits = Limits()
+    if not isinstance(limits, Limits):
+        raise InputError("limits: a Limits instance required")
     sources, events, observations, hypotheses, interventions = parse(data, limits)
     impact = data["impact"]
-    historical = solve(events, observed_edges(events, observations, impact))
+    budget = WorkBudget(limits.work)
     report = {"version": 1, "time_unit": data["time_unit"], "sources": sources,
-              "observations": public(historical, True), "model_assumptions": MODEL_ASSUMPTIONS,
+              "model_assumptions": MODEL_ASSUMPTIONS,
               "hypotheses": {}, "decisions": {},
               "causal_identification": "UNKNOWN: consistency does not prove a cause; supplied hypotheses are not exhaustive"}
+    try:
+        historical = checked_solve(events, observed_edges(events, observations, impact), True, budget)
+    except WorkLimit as exc:
+        report.update(status="UNKNOWN", observations={"status": "UNKNOWN_LIMIT", "reason": str(exc)},
+                      work=budget.json())
+        report["decisions"] = {aid: {"decision": "INSUFFICIENT_MODEL_INFORMATION", "reason": "observations not solved"}
+                               for aid in interventions}
+        return report
+    report["observations"] = public(historical, True)
     if historical["status"] == "INFEASIBLE":
         report["status"] = "INFEASIBLE_OBSERVATIONS"
+        report["work"] = budget.json()
         return report
     unknown_model = False
     for hid, hyp in hypotheses.items():
-        model = max_model(events, observations, impact, hyp, limits)
+        model = max_model(events, observations, impact, hyp, limits, budget=budget)
         missing = sorted(link["id"] for link in hyp["links"] if not link.get("evidence"))
         entry = {"conditions": hyp["assumptions"], "missing_mechanism_evidence": missing,
                  "model": model, "interventions": {}}
         if model["status"] == "FEASIBLE":
             entry["status"] = "CONSISTENT_CONDITIONAL_MODEL"
-            entry["interventions"] = {aid: scenario(events, observations, impact, hyp, model, action, limits)
+            entry["interventions"] = {aid: scenario(events, observations, impact, hyp, model, action, limits, budget)
                                       for aid, action in interventions.items()}
         elif model["status"] == "INFEASIBLE":
             entry["status"] = "CONTRADICTED_MODEL"
@@ -289,7 +338,7 @@ def analyze(data, *, limits=None):
             unknown_model = True
         report["hypotheses"][hid] = entry
     consistent = {h: e for h, e in report["hypotheses"].items() if e["model"]["status"] == "FEASIBLE"}
-    report["status"] = "UNKNOWN" if unknown_model else "ANALYZED" if consistent else "NO_CONSISTENT_MODEL"
+    report["status"] = "UNKNOWN" if unknown_model or budget.exhausted else "ANALYZED" if consistent else "NO_CONSISTENT_MODEL"
     for aid in interventions:
         effects = {h: e["interventions"][aid].get("effect", "unidentified") for h, e in consistent.items()}
         beneficial = {"impact_prevented_under_model", "guaranteed_shorter_under_model"}
@@ -309,4 +358,5 @@ def analyze(data, *, limits=None):
             decision = "NO_GUARANTEED_BENEFIT"
         report["decisions"][aid] = {"decision": decision, "effects_by_hypothesis": effects,
                                     "scope": "only supplied consistent hypotheses; no causal proof or production action"}
+    report["work"] = budget.json()
     return report

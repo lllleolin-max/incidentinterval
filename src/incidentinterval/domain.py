@@ -15,10 +15,11 @@ class Limits:
     interventions: int = 24
     branches: int = 512
     bytes: int = 1_000_000
+    work: int = 2_000_000
 
     def __post_init__(self):
         caps = {"events": 96, "constraints": 512, "hypotheses": 24,
-                "interventions": 48, "branches": 4096, "bytes": 4_000_000}
+                "interventions": 48, "branches": 4096, "bytes": 4_000_000, "work": 20_000_000}
         for name, cap in caps.items():
             value = getattr(self, name)
             if type(value) is not int or not 1 <= value <= cap:

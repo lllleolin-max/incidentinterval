@@ -21,10 +21,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Review interval evidence and explicitly supplied incident hypotheses")
     parser.add_argument("input", type=Path, help="v1 incident JSON (local file only)")
     parser.add_argument("--max-branches", type=int, default=512)
+    parser.add_argument("--max-work", type=int, default=2_000_000, help="aggregate deterministic solver-work budget")
     parser.add_argument("--baseline", action="store_true", help="run disclosed timestamp-only heuristic")
     args = parser.parse_args(argv)
     try:
-        limits = Limits(branches=args.max_branches)
+        limits = Limits(branches=args.max_branches, work=args.max_work)
         with args.input.open("rb") as handle:
             raw = handle.read(limits.bytes + 1)
         if len(raw) > limits.bytes:
