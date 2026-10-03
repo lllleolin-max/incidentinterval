@@ -6,15 +6,19 @@ Review an incident explanation across skewed clocks, before turning it into a re
 
 ## Tested quickstart / 已测快速开始
 
-Python 3.11+; no core runtime dependencies. From this repository:
+Install from a source checkout with Python 3.11+:
 
 ```sh
-python -m venv .venv
-# Linux/macOS
+git clone https://github.com/lllleolin-max/incidentinterval.git
+cd incidentinterval
+```
+
+Linux/macOS:
+
+```sh
+python3 -m venv .venv
 .venv/bin/python -m pip install .
 .venv/bin/python examples/demo.py
-.venv/bin/python examples/contrast.py
-.venv/bin/python -m incidentinterval.cli examples/incident.json
 ```
 
 Windows PowerShell:
@@ -23,10 +27,22 @@ Windows PowerShell:
 py -3 -m venv .venv
 .venv\Scripts\python.exe -m pip install .
 .venv\Scripts\python.exe examples/demo.py
-.venv\Scripts\python.exe examples/contrast.py
-.venv\Scripts\python.exe -m incidentinterval.cli examples/incident.json
-.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
+
+In the remaining examples, `python` means this environment's interpreter:
+`.venv/bin/python` on Linux/macOS or `.venv\Scripts\python.exe` on Windows.
+The runtime uses the standard library; source installation may download build
+dependencies. No PyPI release is required for these instructions.
+
+The demo reads the checked-in synthetic fixture, prints the results below and
+exits `0`; it performs no production action. To inspect the full JSON report:
+
+```sh
+python -m incidentinterval.cli examples/incident.json
+```
+
+Optional comparison and development checks are `python examples/contrast.py`
+and `python -m unittest discover -s tests -v`.
 
 `pip install .` builds and installs a normal wheel, not an editable checkout. The installed console command is `incidentinterval examples/incident.json`. The module form avoids a scripts-directory PATH issue. GitHub Actions declares Ubuntu/Windows with Python 3.11/3.14; local evidence is Windows/Python 3.14.3. Remote CI results remain unverified until publication.
 
@@ -44,6 +60,20 @@ remove_recovery INSUFFICIENT_MODEL_INFORMATION
 例子全部为合成数据：部署日志的记录时间是 20 秒，真实时间区间是 0–40 秒。单一部署假设下，时间排序误选限流，区间机制建议把回滚作为条件性候选；加入负载假设后，回滚变成“取决于假设”。把部署时钟校准到 20 秒又排除部署假设。两假设下修复提速均把影响持续时间从 20 秒变为 5 秒；保留原始 20 秒观察同时声称修复只用 5 秒会被拒绝。这些是执行过的模拟断言，不能视作生产改善。
 
 ## SDK / SDK 使用
+
+CLI input is one local incident JSON file containing sourced event intervals,
+observations, declared hypotheses and interventions. Stdout is the JSON report;
+handled input errors are JSON on stderr. Exit codes:
+
+| Code | Meaning |
+|---|---|
+| `0` | Analysis completed; read each decision's conditions before acting |
+| `2` | Invalid input, usage or file error |
+| `3` | Observations are inconsistent or no declared model is consistent |
+| `4` | The bounded analysis is `UNKNOWN`; not proof of infeasibility |
+
+**中文：** 退出 `0` 表示分析完成，不代表自动批准某个修复动作；`3` 是已发现矛盾，
+`4` 是资源边界内无法确定。报告中的候选措施仍需要维护者审阅与验证。
 
 ```python
 import json
