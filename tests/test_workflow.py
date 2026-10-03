@@ -17,6 +17,43 @@ def fixture():
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_analysis_preserves_original_observation_and_hypothesis_input(self):
+        data = fixture()
+        original = deepcopy(data)
+        analyze(data)
+        self.assertEqual(data, original)
+
+    def test_removal_cannot_preserve_removed_observation(self):
+        data = fixture()
+        data["interventions"] = [{"id": "remove_keep", "remove": ["deploy"],
+                                  "preserve_observations": True, "assumptions": ["Keep the original deployment observation."]}]
+        entry = analyze(data)["hypotheses"]["deploy_fault"]["interventions"]["remove_keep"]
+        self.assertEqual(entry["status"], "INFEASIBLE")
+        removed = entry["historical_compatibility"]["contradiction"]["events"]
+        self.assertIn({"id": "deploy", "evidence": ["deploy_log"]}, removed)
+
+    def test_every_max_equation_branch_has_checkable_contradiction(self):
+        events = {n: {"id": n, "interval": [0, 10]} for n in ("a", "b", "c")}
+        events["c"]["interval"] = [10, 10]
+        observations = {"same": {"id": "same", "from": "a", "to": "b", "delta": [0, 0]},
+                        "later": {"id": "later", "from": "a", "to": "c", "delta": [1, 10]}}
+        links = [{"id": "ac", "from": "a", "to": "c", "delay": [0, 0]},
+                 {"id": "bc", "from": "b", "to": "c", "delay": [0, 0]}]
+        hyp = {"roots": {"a": [0, 10], "b": [0, 10]}, "links": links}
+        result = max_model(events, observations, {"start": "a", "end": "c"}, hyp, Limits())
+        self.assertEqual(result["temporal"]["status"], "FEASIBLE")
+        self.assertEqual(result["status"], "INFEASIBLE")
+        self.assertEqual(len(result["branch_failures"]), 2)
+        base = [Edge(e["source"], e["target"], e["bound"], e["reason"], tuple(e["evidence"]))
+                for e in result["base_constraints"]]
+        for failure in result["branch_failures"]:
+            lid = failure["critical_parents"]["c"]
+            chosen = next(link for link in links if link["id"] == lid)
+            edges = base + [Edge(chosen["from"], "c", 0, f"link:{lid}:critical-upper")]
+            cycle = [Edge(e["source"], e["target"], e["bound"], e["reason"], tuple(e["evidence"]))
+                     for e in failure["contradiction"]["edges"]]
+            self.assertTrue(check_negative_cycle(edges, cycle))
+
     def test_complete_workflow_and_competing_causes(self):
         data = fixture()
         report = analyze(data)
