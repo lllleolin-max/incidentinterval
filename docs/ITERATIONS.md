@@ -62,5 +62,8 @@ The original three correction cycles above are retained unchanged. The
 actual repeated suffix-work evidence and sound prefix pruning at `8967dab`;
 independent integer oracle plus a real malformed search-metadata consumer repair
 at `d5e60d8`; and ordinary installed SDK/console/example/legacy-report delivery
-verification with no new product defect. Two harness mistakes are disclosed
+plus an actual repeated-return closure-retention correction at `17a4741`.
+Successful and work-budget-interrupted searches now release recursive state on
+return. The original 8941 before artifact, same failing/passing probe and two
+regression subtest failures are retained. Two harness mistakes are disclosed
 there and are not counted as product fixes. No score is assigned by the author.

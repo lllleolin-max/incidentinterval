@@ -99,6 +99,7 @@ budget; an incomplete search returns UNKNOWN rather than a partial exact result.
 python examples/prefix.py
 python probes/update_oracle.py --output oracle-results
 python probes/update_proof_boundaries.py --output proof-results
+python probes/update_retention.py --output retention-results
 ```
 
 The prefix example covers 512 complete selectors with two prefix checks and no

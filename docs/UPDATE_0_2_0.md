@@ -31,7 +31,7 @@ Bellman-Ford, precharged to the same budget. It emits every full selector's cycl
 and skips suffix solves. The same probe then passed from a fresh normal wheel;
 all seven module bytes matched and all 35 installed tests passed.
 
-| Same-input measurement | Original 0.1.0 | Prefix implementation |
+| Same-input measurement | Original 0.1.0 | Initial prefix implementation at 8967dab |
 |---|---:|---:|
 | Early contradiction: actual solve calls | 514 | 4 |
 | Requested closure calls | 514 | 2 |
@@ -113,10 +113,34 @@ consumer unchanged (SHA256
 `caed9b5d0d08cf7f51b1f9cc0e215c7fa7f4afd81ddb05521e2ba30f4d8e93c3`).
 Old v1 reports retain the same selector/cycle proof format.
 
-No new product defect was found in this delivery review. It adds documentation,
-examples and runnable verification, not a manufactured third correction.
+Those initial delivery checks passed, but an additional repeated-return memory
+probe found a real regression before publication. The nested recursive `visit`
+function referenced its own closure cell, retaining every explored branch's
+closure until cyclic garbage collection. With automatic GC disabled for a
+reproducible diagnostic, three legal 512-leaf SDK calls returned while current
+Python allocations grew 4,251,585 → 8,375,593 → 12,488,489 bytes. Explicit GC
+reclaimed 12,392,830 bytes. Original 0.1.0 on the same probe remained near
+186,831 bytes after three calls, with 91,544 bytes reclaimed. This is delayed
+release of unreachable state, not a claim of permanently uncollectable memory.
+
+The before artifact `8941acf726ed33932d16619825f8f8d2f20450d0` is retained. An
+installed-wheel regression independently exercised both completed searches and
+200,000-unit WorkLimit interruptions: 12,567,538 and 1,432,012 bytes respectively
+remained unreachable until explicit GC; both subtests failed the 500 KB fixture
+bound. Commit `17a47410f6ad0bef10022e24be5320db92cddc32` clears the recursive cell
+in `finally`, including exception unwind. The unchanged standalone retention
+probe then passed: current allocations after three runs were 186,911 → 187,287
+→ 187,319 bytes, with 91,696 reclaimed by explicit GC. The meaningful completed
+and interrupted regression and all 37 installed tests passed. Disabled GC is
+diagnostic only; reports/input remain alive, and values measure Python
+allocations, not RSS or an OS quota. The full live search still uses O(BV²)
+closure memory. Solver/loop/work counts and complete proof records did not change
+in this correction. Wall times varied between local runs and remain observations
+rather than performance guarantees.
+
 The original three substantive corrections remain in `ITERATIONS.md`; this
-update has two real changes across three honest review stages.
+update now has three actual substantive corrections across three review stages.
+Extra probe coverage and documentation commits are not additional fix cycles.
 
 Two probe errors are preserved separately from product findings: the first work
 driver treated the hypotheses dictionary as a list, causing KeyError before

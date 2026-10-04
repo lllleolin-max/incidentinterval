@@ -14,6 +14,9 @@
   and supported search metadata. Old v1 reports without metadata remain valid.
 - Add a 512-selector SDK example, separate report-consumer example, work
   benchmark, raw integer/max-plus oracle and adversarial metadata probe.
+- Release recursive search state on both normal completion and work-budget
+  interruption. Repeated SDK calls no longer retain unreachable full branch
+  closure sets until cyclic garbage collection runs.
 - This optimization benefits contradicted subtrees. The disclosed all-feasible
   benchmark takes more work and time. Worst-case exponential enumeration and
   retained closure memory remain; source authenticity and real-world causal
