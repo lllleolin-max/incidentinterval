@@ -66,6 +66,27 @@ class PrefixTests(unittest.TestCase):
         self.assertEqual(exhausted["hypotheses"]["h"]["model"]["status"], "UNKNOWN_LIMIT")
         self.assertNotIn("branch_failures", exhausted["hypotheses"]["h"]["model"])
 
+    def test_consumer_checks_search_metadata_and_accepts_legacy_reports(self):
+        data = branching(True, 2)
+        events = {e["id"]: e for e in data["events"]}
+        hyp = data["hypotheses"][0]
+        model = analyze(data)["hypotheses"]["h"]["model"]
+        def check(value):
+            return check_model_contradiction(events, {}, data["impact"], hyp, value)
+        legacy = deepcopy(model)
+        del legacy["branch_search"]
+        self.assertTrue(check(legacy))
+        for field, value in (("version", True), ("version", 2), ("method", "unknown"),
+                             ("prefix_checks", 1.0), ("leaf_solves", -1),
+                             ("pruned_assignments", 0), ("pruned_subtrees", 99)):
+            bad = deepcopy(model)
+            bad["branch_search"][field] = value
+            self.assertFalse(check(bad), (field, value))
+        for shape in (None, [], {"version": 1}, {**model["branch_search"], "extra": 0}):
+            bad = deepcopy(model)
+            bad["branch_search"] = shape
+            self.assertFalse(check(bad))
+
 
 if __name__ == "__main__":
     unittest.main()

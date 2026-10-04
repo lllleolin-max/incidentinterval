@@ -19,7 +19,8 @@ def check_model_contradiction(events, observations, impact, hypothesis, model):
     Reconstructs constraints directly, without engine helpers or STN solving.
     A branch failure may use a negative cycle from any subset of that branch.
     All complete selectors must occur once. Old v1 reports are supported;
-    additive search counters describe execution, not authenticated telemetry.
+    Additive search counters must have supported types and possible coverage
+    accounting; they are execution claims, not authenticated telemetry.
     Inputs are the event/observation dictionaries of a validated v1 incident.
     """
     try:
@@ -85,7 +86,25 @@ def check_model_contradiction(events, observations, impact, hypothesis, model):
         count = prod(len(incoming[n]) for n in nonroots)
         if type(model["branches_total"]) is not int or model["branches_total"] != count:
             return False
+        if "branch_search" in model:
+            meta = model["branch_search"]
+            fields = {"version", "method", "prefix_checks", "leaf_solves", "pruned_subtrees", "pruned_assignments"}
+            counters = fields - {"version", "method"}
+            maximum_checks = sum(prod(len(incoming[n]) for n in nonroots[:i + 1])
+                                 for i, n in enumerate(nonroots)
+                                 if len(incoming[n]) > 1 and prod(len(incoming[x]) for x in nonroots[i + 1:]) > 1)
+            if (not isinstance(meta, dict) or set(meta) != fields or type(meta["version"]) is not int
+                    or meta["version"] != 1 or meta["method"] != "negative_cycle_prefix"
+                    or any(type(meta[k]) is not int or meta[k] < 0 for k in counters)
+                    or meta["prefix_checks"] > maximum_checks
+                    or meta["pruned_subtrees"] > meta["prefix_checks"]
+                    or meta["pruned_assignments"] < 2 * meta["pruned_subtrees"]
+                    or bool(meta["pruned_assignments"]) != bool(meta["pruned_subtrees"])
+                    or meta["leaf_solves"] + meta["pruned_assignments"] != count):
+                return False
         if model["branches_tested"] == 0 and type(model["branches_tested"]) is int:
+            if "branch_search" in model:
+                return False  # No selector search occurs for a base contradiction.
             return cycle_ok(model["temporal"]["contradiction"], base)
         failures = model["branch_failures"]
         if (count > 4096 or type(model["branches_tested"]) is not int or model["branches_tested"] != count
