@@ -25,7 +25,32 @@ The observation network contains source-bearing inequalities `t[target]-t[source
 
 `INFEASIBLE` temporal networks carry a negative-cycle certificate. Its edges form a closed connected walk, belong to the supplied inequalities, and sum to a strictly negative upper bound. This contradicts the telescoping sum of time differences, which is zero. Sources identify what to inspect; the certificate is sufficient but need not be a minimal unsatisfiable subset.
 
-Each hypothesis contains its user conditions, missing mechanism evidence, model status and intervention reports. `INVALID_MODEL` is a causal cycle/root mismatch outside the supported structural subset; it stays UNKNOWN and is not called disproven causality. `UNKNOWN_LIMIT` means exact enumeration was not run. A FEASIBLE max model supplies a concrete assignment and in-range delays satisfying every max equation; `duration_extrema` proves attained minimum/maximum times. The min/max envelope may have gaps in its interior.
+Each hypothesis contains its user conditions, missing mechanism evidence, model status and intervention reports. `INVALID_MODEL` is a causal cycle/root mismatch outside the supported structural subset; it stays UNKNOWN and is not called disproven causality. `UNKNOWN_LIMIT` means exact enumeration was not completed. A FEASIBLE max model supplies a concrete assignment and in-range delays satisfying every max equation; `duration_extrema` supplies witnesses attaining the reported minimum/maximum times. Global optimality also depends on the complete union search and tight STN closure. The min/max envelope may have gaps in its interior.
+
+From package 0.2.0, a completed selector search adds `branch_search` with exactly
+`version:1`, `method:"negative_cycle_prefix"` and nonnegative integer counters
+`prefix_checks`, `leaf_solves`, `pruned_subtrees`, `pruned_assignments`.
+`branches_tested` counts complete selectors covered by solved leaves or negative
+prefix proofs, rather than solver calls. For a completed search,
+`leaf_solves + pruned_assignments == branches_total`. A pruned subtree has at
+least two suffix assignments; the same prefix cycle is a valid constraint subset
+of each full assignment. `branch_failures` retains the legacy complete
+`critical_parents` map and negative-cycle object for every selector when all
+selectors fail. Necessary/base contradictions have `branches_tested:0` and no
+search metadata. Work-limited partial searches publish neither incomplete failure
+lists nor exact ranges.
+
+`check_model_contradiction(events, observations, impact, hypothesis, model)` takes
+the event/observation dictionaries of a validated v1 incident and independently
+reconstructs envelope and link constraints. It checks a necessary-constraint
+negative cycle, or exactly one valid cycle for every possible complete selector
+(at most 4096). It checks supported metadata types and possible accounting when
+present, and accepts old v1 reports without it. Counters are execution claims,
+not authenticated telemetry. Feasible optimality, source authenticity and
+omitted mechanisms are not certified by this function. The separate consumer
+example validates incident JSON, caps incident/report files at 4/32 MB, and
+returns 1 when there is no contradicted-model proof to check; these are example
+file limits, not universal report-size or SDK memory guarantees.
 
 `critical_parent_alternatives` lists selections from all feasible critical-parent branches. `witness_critical_path` is one feasible path to recovery, not the unique historical critical path. `impact_duration` is exact within the bounded structural model. `improvement_enclosure` subtracts independently varying baseline and scenario envelopes, and is a conservative **unpaired** bound, not a shared-world causal effect distribution.
 

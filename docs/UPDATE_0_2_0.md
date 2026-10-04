@@ -1,0 +1,119 @@
+# 0.2.0: proved prefix pruning within the existing work budget
+
+This update improves repeat STN work in explicitly contradicted critical-parent
+subtrees. It preserves the input/report v1 contract, complete selector failure
+records, exact feasible duration endpoints and alternatives, conditional action
+semantics, and the existing whole-analysis work budget. It adds an independent
+contradiction consumer with metadata validation. It is not a causal inference
+or production-operation capability.
+
+Baseline `e79e924137ba006c525ac2e25c57386991509ba3` is the original 0.1.0 artifact.
+The fetched README-only update was normally fast-forwarded to
+`d195de259507c49c74ca6f0a6302ba4030ea541f` and retained. No history was rewritten.
+Baseline canonical LF Git archive, raw Git blob, ordinary wheel and isolated
+site-package bytes matched all seven package modules. Installed baseline suite:
+32 tests, 4.212 seconds, PASS. Existing aggregate-budget protection was already
+correct; it is not presented as a new bug or repair.
+
+## Review 1: repeated suffix work
+
+The unchanged `benchmarks/prefix.py` probe uses eleven events, nine binary gates
+and 512 complete selectors. Root activation assumptions permit [0,1], measured
+roots equal zero, and the first child must equal one despite zero delays. The
+necessary envelope remains feasible, but either first-parent choice creates a
+negative cycle. Both variants use `Limits(work=20_000_000)` within existing caps;
+the default cap was not raised in code.
+
+The probe before 0.2.0 failed its requested-work assertion: every complete leaf
+still invoked a solver. Commit
+`8967dab00e4fb396caa5ec4816ab4b1f00358e94` checks multiple-choice prefixes with
+Bellman-Ford, precharged to the same budget. It emits every full selector's cycle
+and skips suffix solves. The same probe then passed from a fresh normal wheel;
+all seven module bytes matched and all 35 installed tests passed.
+
+| Same-input measurement | Original 0.1.0 | Prefix implementation |
+|---|---:|---:|
+| Early contradiction: actual solve calls | 514 | 4 |
+| Requested closure calls | 514 | 2 |
+| Executed Bellman-Ford edge visits | 442,626 | 1,794 |
+| Executed closure candidates | 3,456 | 3,456 |
+| Charged work units | 1,331,592 | 6,024 |
+| Median of three untraced runs, seconds | 0.11668 | 0.001827 |
+| Whole-analysis tracemalloc peak, bytes | 899,244 | 319,530 |
+| Complete failing selector records | 512 | 512 |
+| All-feasible adverse case: actual solve calls | 516 | 1,026 |
+| Requested closure calls | 514 | 514 |
+| Executed Bellman-Ford edge visits | 37,098 | 72,814 |
+| Executed closure candidates | 888,192 | 888,192 |
+| Charged work units | 1,333,368 | 1,761,960 |
+| Median of three untraced runs, seconds | 0.13066 | 0.14543 |
+| Whole-analysis tracemalloc peak, bytes | 4,978,418 | 4,296,724 |
+| Complete feasible selectors | 512 | 512 |
+
+These are Windows/Python 3.14.3 local synthetic measurements. Actual loop counts
+use line tracing of the installed solver; timing is measured separately without
+tracing, and memory is Python allocation peak, not process RSS. Closure-call
+counts describe requests: an infeasible solver returns before running closure.
+The adverse case costs about 32% more charged work and 11% more wall time here;
+timing and peak differences are not universal guarantees. Prefix checks can
+cause UNKNOWN at a budget where the old complete search fitted. Initial closure,
+worst-case exponential enumeration, retained feasible closures and serialized
+proof volume remain. This is neither constant-memory nor unconditional speedup.
+
+## Review 2: independent semantics and proof consumption
+
+`probes/update_oracle.py` determines expected worlds by literal integer roots,
+delays and max equations. It calls no production graph, envelope, transformation,
+solver or checker to compute expected results. Actual counts:
+
+- 180 incident fixtures, 197 model comparisons, 176 feasible models;
+- 528 complete critical-parent alternative sets and feasible-selector counts;
+- 880 historical and 880 counterfactual comparisons;
+- 900 conditional action decision/effect comparisons;
+- 150 additional tiny integer STNs, 54 feasible, 324 exact pair-range comparisons.
+
+All matched. Inputs remained unchanged. The original independent probe also ran
+unchanged against the installed wheel: 100 STNs/1,025 pair ranges, 140 max-plus
+fixtures/62 alternative sets, 155 interventions, malformed domains, forged
+certificates, missing evidence and shared-budget boundaries all passed.
+
+An actual adversarial consumer finding remained: the new checker validated the
+negative cycles and selector coverage but ignored malformed `branch_search`
+metadata. The unchanged `probes/update_proof_boundaries.py` observed nine invalid
+metadata cases accepted at `8967dab`; these include bool/unknown version,
+unknown method, impossible or negative counters, and missing/extra fields.
+Commit `d5e60d824ab6da3f883922d72a79a54d8e8b45c5` validates exact field types,
+supported format and possible coverage accounting. Same normal-wheel probe:
+all nine rejected, legacy no-metadata report accepted. Fresh seven-module
+association and all 36 installed tests passed (5.701 seconds). Metadata remains
+an execution claim, not authenticated telemetry. Logical contradiction is proved
+by independently reconstructed constraints, every complete selector and each
+negative cycle.
+
+## Review 3: installed delivery and compatibility
+
+The ordinary installed SDK and actual sysconfig console ran 33 cases across
+native, PYTHONUTF8=0 and PYTHONUTF8=1. Normal/baseline/BOM inputs returned 0;
+malformed duplicate/nonfinite/UTF-8/oversize inputs returned structured JSON 2;
+inconsistent observations and the 512-selector contradiction returned 3;
+whole-work and branch limits returned 4 with no partial exact range. All input
+file bytes were preserved. SDK and console reports matched. The original demo,
+four-case contrast, new prefix example and separate independent report consumer
+all returned 0. Old v1 reports retain the same selector/cycle proof format.
+
+No new product defect was found in this delivery review. It adds documentation,
+examples and runnable verification, not a manufactured third correction.
+The original three substantive corrections remain in `ITERATIONS.md`; this
+update has two real changes across three honest review stages.
+
+Two probe errors are preserved separately from product findings: the first work
+driver treated the hypotheses dictionary as a list, causing KeyError before
+measuring results; the first delivery driver incorrectly expected BOM rejection.
+The unchanged CLI has always passed binary input to json.loads, which accepts a
+BOM. Corrected drivers produced the reported results; no product changes were
+made for those harness mistakes. The final exact SHA and canonical installation
+receipts are supplied separately because this file cannot contain its own hash.
+
+Customer usage, revenue and production savings remain unknown. Source references
+are opaque, hypotheses may omit the true mechanism, and independent delay/AND
+assumptions remain. Linux/Python 3.11 and remote CI are not locally executed claims.

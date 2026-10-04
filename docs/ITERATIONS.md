@@ -54,3 +54,13 @@ py -3 -m venv .venv-verify
 Fresh environment imported SDK from `.venv-verify/Lib/site-packages/incidentinterval/__init__.py`, not `src/`. Final expanded suite: **32 tests in 3.948s, OK**, including 80 independent STN integer enumerations and 45 separate direct max-equation oracle cases. Synthetic demo assertions and four contrast cases passed. Installed console report: `status=ANALYZED`, `rollback=HYPOTHESIS_SENSITIVE`, charged work 8,316; tiny-budget CLI exit 4. From the separate `dist` working directory, installed SDK also returned ANALYZED with faster repair a CONDITIONAL_CANDIDATE and installed baseline returned rate_limit. This demonstrates ordinary wheel use without an editable checkout/source-path injection.
 
 Limits remaining: only finite integer DAG AND models with independent delay intervals; critical-parent branch and total work limits; sources are opaque/unverified; hypothesis list may omit the real cause; min/max simulation bounds and unpaired improvements are not identified production effects. All fixtures are synthetic. Ubuntu/Python 3.11/remote CI are declared scope, not locally observed results. Adoption, willingness to pay and revenue are unknown. Exact final frozen SHA is supplied in the delivery report; this log cannot contain its own commit hash.
+
+## 0.2.0 update — three further review stages
+
+The original three correction cycles above are retained unchanged. The
+[0.2.0 update record](UPDATE_0_2_0.md) describes three new self-review stages:
+actual repeated suffix-work evidence and sound prefix pruning at `8967dab`;
+independent integer oracle plus a real malformed search-metadata consumer repair
+at `d5e60d8`; and ordinary installed SDK/console/example/legacy-report delivery
+verification with no new product defect. Two harness mistakes are disclosed
+there and are not counted as product fixes. No score is assigned by the author.

@@ -88,6 +88,32 @@ print(report["decisions"]["rollback"]["decision"])
 
 `analyze` does not mutate the input. Malformed/unsupported inputs raise `InputError`; contradictions and resource-limit unknowns are valid report statuses. The [input and output contract](docs/FORMAT.md) describes every field. [Architecture](docs/ARCHITECTURE.md) includes the max-equation proof, complexity, certificates and supported subset. [Independent checker](src/incidentinterval/checker.py) verifies feasible model witnesses directly without invoking the solver.
 
+Version 0.2.0 checks critical-parent prefixes for negative cycles before solving
+their suffixes. A contradiction of a prefix refutes every extension. Reports
+still contain a certificate for every complete selector, so v1 report consumers
+retain the same proof format. `branch_search` distinguishes actual prefix checks,
+leaf solves and covered assignments. All work shares the existing whole-analysis
+budget; an incomplete search returns UNKNOWN rather than a partial exact result.
+
+```sh
+python examples/prefix.py
+python probes/update_oracle.py --output oracle-results
+python probes/update_proof_boundaries.py --output proof-results
+```
+
+The prefix example covers 512 complete selectors with two prefix checks and no
+leaf solves. It uses `check_model_contradiction` to reconstruct constraints and
+verify complete coverage independently. To consume a saved contradicted-model
+report separately, run `python examples/check_contradictions.py INCIDENT.json
+REPORT.json`. That example checks refuted models; a feasible endpoint alone does
+not certify global optimality. The SDK checker accepts old v1 contradiction
+reports without the new metadata.
+
+The [measured update](docs/UPDATE_0_2_0.md) includes an adverse all-feasible case:
+prefix checks can cost more, and they do not reduce worst-case exponential
+enumeration or retained feasible closure memory. Default branch/work limits are
+unchanged. The [changelog](CHANGELOG.md) describes the additive interface.
+
 ## Review workflow / 用于实际复盘
 
 1. Pick a small set of significant events; normalize a common origin/unit and record inclusive clock bounds. Add source IDs pointing to logs, offset measurements or experiment notes. The tool does not retrieve or authenticate these sources.
