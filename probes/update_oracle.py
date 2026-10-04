@@ -78,6 +78,18 @@ def range_of(states, impact):
     return [min(values), max(values)]
 
 
+def check_attainment(model, states, impact):
+    """Reported witnesses must be actual raw-enumerated worlds, not only ranges."""
+    for cert in [model["witness"], *model.get("duration_extrema", [])]:
+        assignment = cert["assignment"]
+        assert assignment[ANCHOR] == 0
+        assert {n: v for n, v in assignment.items() if n != ANCHOR} in states
+    if impact["start"] in states[0] and impact["end"] in states[0]:
+        expected = range_of(states, impact)
+        assert model["impact_duration"] == expected
+        assert [c["impact_duration"] for c in model["duration_extrema"]] == expected
+
+
 def build(rng, index):
     names = ("r", "s", "a", "b", "c")
     roots = {n: [rng.randint(-1, 0), rng.randint(0, 1)] for n in ("r", "s")}
@@ -115,7 +127,8 @@ def run_cases():
     rng = random.Random(61005)
     counts = {"max_plus_incidents": 180, "model_comparisons": 0, "feasible_models": 0,
               "critical_alternative_sets": 0, "intervention_comparisons": 0,
-              "historical_comparisons": 0, "decision_comparisons": 0, "stn_cases": 150,
+              "historical_comparisons": 0, "historical_alternative_sets": 0,
+              "counterfactual_alternative_sets": 0, "decision_comparisons": 0, "stn_cases": 150,
               "stn_feasible": 0, "stn_pair_ranges": 0}
     for i in range(180):
         data = build(rng, i)
@@ -141,16 +154,28 @@ def run_cases():
             assert model["impact_duration"] == baseline, (i, baseline, model["impact_duration"])
             assert model["critical_parent_alternatives"] == alternatives
             assert model["feasible_branches"] == branch_count
+            check_attainment(model, states, data["impact"])
             missing |= any(not e.get("evidence") for e in hyp["links"])
             for action in data["interventions"]:
                 counts["intervention_comparisons"] += 1
                 counts["historical_comparisons"] += 1
                 entry = report["hypotheses"][hyp["id"]]["interventions"][action["id"]]
-                hist = worlds(data, hyp, action, historical=True)[0]
+                hist_info = worlds(data, hyp, action, historical=True)
+                hist = hist_info[0]
                 assert bool(hist) == (entry["historical_compatibility"]["status"] == "FEASIBLE")
+                if hist:
+                    counts["historical_alternative_sets"] += len(hist_info[1])
+                    assert entry["historical_compatibility"]["critical_parent_alternatives"] == hist_info[1]
+                    assert entry["historical_compatibility"]["feasible_branches"] == hist_info[4]
+                    check_attainment(entry["historical_compatibility"], hist, data["impact"])
                 result = worlds(data, hyp, action)
                 after, _, removed, affected = result[:4]
                 assert bool(after) == (entry["status"] == "FEASIBLE"), (i, action["id"], entry)
+                if after:
+                    counts["counterfactual_alternative_sets"] += len(result[1])
+                    assert entry["counterfactual"]["critical_parent_alternatives"] == result[1]
+                    assert entry["counterfactual"]["feasible_branches"] == result[4]
+                    check_attainment(entry["counterfactual"], after, data["impact"])
                 if action.get("preserve_observations") and removed:
                     effect = "unidentified"
                 else:

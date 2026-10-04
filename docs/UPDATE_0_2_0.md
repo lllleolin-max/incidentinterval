@@ -60,6 +60,12 @@ cause UNKNOWN at a budget where the old complete search fitted. Initial closure,
 worst-case exponential enumeration, retained feasible closures and serialized
 proof volume remain. This is neither constant-memory nor unconditional speedup.
 
+The first observation/base closure calls were also measured separately. In both
+versions their incremental tracemalloc peak growth was 7,944/8,376 bytes for
+12 nodes and 23/63 unique edges; retained growth was 7,240/7,672 bytes. This
+excludes previously allocated outer state and is not whole-process peak/RSS.
+The optimization leaves this initialization cost in place.
+
 ## Review 2: independent semantics and proof consumption
 
 `probes/update_oracle.py` determines expected worlds by literal integer roots,
@@ -69,6 +75,8 @@ solver or checker to compute expected results. Actual counts:
 - 180 incident fixtures, 197 model comparisons, 176 feasible models;
 - 528 complete critical-parent alternative sets and feasible-selector counts;
 - 880 historical and 880 counterfactual comparisons;
+- 1,065 historical and 1,589 counterfactual critical-parent alternative sets,
+  including complete feasible-selector counts and raw-world endpoint attainment;
 - 900 conditional action decision/effect comparisons;
 - 150 additional tiny integer STNs, 54 feasible, 324 exact pair-range comparisons.
 
@@ -99,7 +107,11 @@ inconsistent observations and the 512-selector contradiction returned 3;
 whole-work and branch limits returned 4 with no partial exact range. All input
 file bytes were preserved. SDK and console reports matched. The original demo,
 four-case contrast, new prefix example and separate independent report consumer
-all returned 0. Old v1 reports retain the same selector/cycle proof format.
+all returned 0. A report actually produced by the ordinary 0.1.0 console,
+containing 512 full selector failures and no search metadata, passed the new
+consumer unchanged (SHA256
+`caed9b5d0d08cf7f51b1f9cc0e215c7fa7f4afd81ddb05521e2ba30f4d8e93c3`).
+Old v1 reports retain the same selector/cycle proof format.
 
 No new product defect was found in this delivery review. It adds documentation,
 examples and runnable verification, not a manufactured third correction.
