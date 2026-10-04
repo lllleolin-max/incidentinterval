@@ -1,5 +1,7 @@
 """Prefix contradictions must cover all complete selectors without losing ties."""
 from copy import deepcopy
+import gc
+import tracemalloc
 import unittest
 from unittest.mock import patch
 from incidentinterval import analyze, Limits, check_model_contradiction
@@ -19,6 +21,29 @@ def branching(contradiction, gates=9):
 
 
 class PrefixTests(unittest.TestCase):
+    def test_completed_and_interrupted_search_release_branch_state_on_return(self):
+        enabled = gc.isenabled()
+        gc.collect()
+        gc.disable()
+        tracemalloc.start()
+        try:
+            data = branching(False)
+            for budget in (20_000_000, 200_000):
+                with self.subTest(work=budget):
+                    for _ in range(3):
+                        report = analyze(data, limits=Limits(work=budget))
+                        self.assertEqual(report["status"], "ANALYZED" if budget == 20_000_000 else "UNKNOWN")
+                    before, _ = tracemalloc.get_traced_memory()
+                    gc.collect()
+                    after, _ = tracemalloc.get_traced_memory()
+                    # A returned tiny report should not hide multiple full 512-leaf
+                    # closure sets (>12 MB in the actual before reproduction).
+                    self.assertLess(before - after, 500_000)
+        finally:
+            tracemalloc.stop()
+            if enabled:
+                gc.enable()
+
     def test_512_selector_contradiction_keeps_full_independent_proof(self):
         data = branching(True)
         original = deepcopy(data)

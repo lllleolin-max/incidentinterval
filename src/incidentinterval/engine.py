@@ -221,7 +221,12 @@ def _max_model(events, observations, impact, hyp, limits, budget):
                     continue
             visit(index + 1, choice, edges)
 
-    visit(0, [], base)
+    try:
+        visit(0, [], base)
+    finally:
+        # The recursive closure otherwise refers to its own cell and retains
+        # all branch results until cyclic GC, including after WorkLimit aborts.
+        visit = None
     out["branch_search"] = search
     out["branches_tested"] = branch_count
     out["feasible_branches"] = len(feasible)
