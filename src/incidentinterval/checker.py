@@ -1,5 +1,6 @@
 """Independent direct-equation checker; does not use the solver or its closure."""
-from .temporal import ANCHOR
+from math import prod
+from .temporal import ANCHOR, Edge, check_negative_cycle
 
 
 def check_causal_cycle(hypothesis, link_ids):
@@ -9,6 +10,108 @@ def check_causal_cycle(hypothesis, link_ids):
         path = [links[key] for key in link_ids]
         return bool(path) and all(a["to"] == b["from"] for a, b in zip(path, path[1:] + path[:1]))
     except (KeyError, TypeError):
+        return False
+
+
+def check_model_contradiction(events, observations, impact, hypothesis, model):
+    """Check necessary-constraint or exhaustive selector contradiction evidence.
+
+    Reconstructs constraints directly, without engine helpers or STN solving.
+    A branch failure may use a negative cycle from any subset of that branch.
+    All complete selectors must occur once. Old v1 reports are supported;
+    additive search counters describe execution, not authenticated telemetry.
+    Inputs are the event/observation dictionaries of a validated v1 incident.
+    """
+    try:
+        if model["status"] != "INFEASIBLE" or not 1 <= len(events) <= 96 or len(observations) > 512:
+            return False
+        links = hypothesis["links"]
+        if not isinstance(links, list) or len(links) > 512:
+            return False
+        by_id = {e["id"]: e for e in links}
+        if len(by_id) != len(links):
+            return False
+        incoming = {n: [] for n in events}
+        for edge in links:
+            if edge["from"] not in events or edge["to"] not in events:
+                return False
+            incoming[edge["to"]].append(edge)
+        if set(hypothesis["roots"]) != {n for n in events if not incoming[n]}:
+            return False
+        # Independent topological envelope construction.
+        support, pending = {}, set(events)
+        while pending:
+            ready = sorted(n for n in pending if all(e["from"] in support for e in incoming[n]))
+            if not ready:
+                return False
+            for n in ready:
+                support[n] = (list(hypothesis["roots"][n]) if not incoming[n] else
+                              [max(support[e["from"]][k] + e["delay"][k] for e in incoming[n])
+                               for k in (0, 1)])
+                pending.remove(n)
+        base = []
+        def add_window(a, b, values, reason, evidence=()):
+            if (not isinstance(values, list) or len(values) != 2 or
+                    any(type(v) is not int for v in values) or values[0] > values[1]):
+                raise ValueError("invalid interval")
+            base.extend([Edge(a, b, values[1], reason + ":upper", tuple(evidence)),
+                         Edge(b, a, -values[0], reason + ":lower", tuple(evidence))])
+        for n, event in events.items():
+            add_window(ANCHOR, n, event["interval"], "event:" + n, event.get("evidence", []))
+            add_window(ANCHOR, n, support[n], "model-envelope:" + n)
+        for obs in observations.values():
+            add_window(obs["from"], obs["to"], obs["delta"], "observation:" + obs["id"], obs.get("evidence", []))
+        if impact["start"] in events and impact["end"] in events:
+            base.append(Edge(impact["end"], impact["start"], 0, "impact:nonnegative"))
+        for link in links:
+            base.append(Edge(link["to"], link["from"], -link["delay"][0], "link:" + link["id"] + ":lower",
+                             tuple(link.get("evidence", []))))
+        def decode(raw):
+            if (not isinstance(raw, dict) or set(raw) != {"source", "target", "bound", "reason", "evidence"}
+                    or type(raw["bound"]) is not int or not isinstance(raw["evidence"], list)
+                    or any(not isinstance(raw[k], str) for k in ("source", "target", "reason"))
+                    or any(not isinstance(v, str) for v in raw["evidence"])):
+                raise ValueError("invalid edge")
+            return Edge(raw["source"], raw["target"], raw["bound"], raw["reason"], tuple(raw["evidence"]))
+        if model["base_constraints"] != [e.json() for e in sorted(set(base))]:
+            return False
+        def cycle_ok(raw, edges):
+            if not isinstance(raw, dict) or set(raw) != {"kind", "edges", "sum_upper_bounds"} or raw["kind"] != "negative_cycle":
+                return False
+            witness = [decode(e) for e in raw["edges"]]
+            return (type(raw["sum_upper_bounds"]) is int and raw["sum_upper_bounds"] == sum(e.bound for e in witness)
+                    and check_negative_cycle(edges, witness))
+        nonroots = sorted(n for n in events if incoming[n])
+        count = prod(len(incoming[n]) for n in nonroots)
+        if type(model["branches_total"]) is not int or model["branches_total"] != count:
+            return False
+        if model["branches_tested"] == 0 and type(model["branches_tested"]) is int:
+            return cycle_ok(model["temporal"]["contradiction"], base)
+        failures = model["branch_failures"]
+        if (count > 4096 or type(model["branches_tested"]) is not int or model["branches_tested"] != count
+                or type(model["feasible_branches"]) is not int or model["feasible_branches"] != 0
+                or not isinstance(failures, list) or len(failures) != count):
+            return False
+        seen = set()
+        for failure in failures:
+            chosen = failure["critical_parents"]
+            if not isinstance(chosen, dict) or set(chosen) != set(nonroots):
+                return False
+            identity = tuple(chosen[n] for n in nonroots)
+            if identity in seen:
+                return False
+            seen.add(identity)
+            edges = list(base)
+            for n in nonroots:
+                link = by_id[chosen[n]]
+                if link["to"] != n:
+                    return False
+                edges.append(Edge(link["from"], n, link["delay"][1], "link:" + link["id"] + ":critical-upper",
+                                  tuple(link.get("evidence", []))))
+            if not cycle_ok(failure["contradiction"], edges):
+                return False
+        return True
+    except (KeyError, TypeError, ValueError, AttributeError):
         return False
 
 

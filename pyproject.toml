@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "incidentinterval"
-version = "0.1.0"
+version = "0.2.0"
 description = "Evidence-linked incident hypotheses with integer interval constraints and bounded counterfactuals"
 requires-python = ">=3.11"
 license = "MIT"

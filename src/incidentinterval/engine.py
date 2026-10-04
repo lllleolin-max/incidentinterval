@@ -184,16 +184,45 @@ def _max_model(events, observations, impact, hyp, limits, budget):
         return {**out, "status": "UNKNOWN_LIMIT", "branches_tested": 0,
                 "reason": f"exact max model needs {branch_count} branches; limit is {limits.branches}"}
     feasible, failures = [], []
-    for selection in product(*(incoming[n] for n in nonroots)):
-        chosen = {n: link["id"] for n, link in zip(nonroots, selection)}
-        branch_edges = base + [Edge(link["from"], link["to"], link["delay"][1],
-                                   "link:" + link["id"] + ":critical-upper",
-                                   tuple(link.get("evidence", []))) for link in selection]
-        result = checked_solve(events, branch_edges, True, budget)
-        if result["status"] == "INFEASIBLE":
-            failures.append({"critical_parents": chosen, "contradiction": public(result)["contradiction"]})
-        else:
-            feasible.append((chosen, result))
+    search = {"version": 1, "method": "negative_cycle_prefix", "prefix_checks": 0,
+              "leaf_solves": 0, "pruned_subtrees": 0, "pruned_assignments": 0}
+
+    def visit(index, selected, branch_edges):
+        if index == len(nonroots):
+            chosen = {n: link["id"] for n, link in zip(nonroots, selected)}
+            result = checked_solve(events, branch_edges, True, budget)
+            search["leaf_solves"] += 1
+            if result["status"] == "INFEASIBLE":
+                failures.append({"critical_parents": chosen, "contradiction": public(result)["contradiction"]})
+            else:
+                feasible.append((chosen, result))
+            return
+        for link in incoming[nonroots[index]]:
+            choice = selected + [link]
+            edges = branch_edges + [Edge(link["from"], link["to"], link["delay"][1],
+                                         "link:" + link["id"] + ":critical-upper",
+                                         tuple(link.get("evidence", [])))]
+            # A negative cycle uses only existing prefix constraints. Adding any
+            # suffix cannot remove it. Single-choice prefixes need no extra solve.
+            suffix = nonroots[index + 1:]
+            if len(incoming[nonroots[index]]) > 1 and prod(len(incoming[n]) for n in suffix) > 1:
+                result = checked_solve(events, edges, False, budget)
+                search["prefix_checks"] += 1
+                if result["status"] == "INFEASIBLE":
+                    contradiction = public(result)["contradiction"]
+                    search["pruned_subtrees"] += 1
+                    for completion in product(*(incoming[n] for n in suffix)):
+                        full = choice + list(completion)
+                        chosen = {n: edge["id"] for n, edge in zip(nonroots, full)}
+                        # Keep the legacy complete-selector certificate format:
+                        # the prefix cycle is also a cycle of each full branch.
+                        failures.append({"critical_parents": chosen, "contradiction": contradiction})
+                        search["pruned_assignments"] += 1
+                    continue
+            visit(index + 1, choice, edges)
+
+    visit(0, [], base)
+    out["branch_search"] = search
     out["branches_tested"] = branch_count
     out["feasible_branches"] = len(feasible)
     if not feasible:
